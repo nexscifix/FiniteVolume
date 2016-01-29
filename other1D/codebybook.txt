@@ -1,0 +1,5 @@
+versteeg malaseevsk introduction comp fluid dynamics (second)
+vertex centered finite volume
+центр элемента в вершине (i,j)  там же основные переменные
+грани элемента - посередине между вершинами
+

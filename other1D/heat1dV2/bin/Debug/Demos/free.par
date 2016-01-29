@@ -1,0 +1,7 @@
+1.0		xlength: domain size in x-direction
+1.0		ylength: domain size in y-direction
+70	       	Re: Reynolds number
+0.0		GX:            
+-10.0		GY: volume forces, e.g. gravity
+0.0		UI:
+0.0		VI: initial values
