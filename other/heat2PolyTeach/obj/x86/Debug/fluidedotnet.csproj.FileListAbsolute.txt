@@ -239,3 +239,5 @@ f:\new\cfdprogramming\src2015\finitevolumecell\heat2PolyTeach\obj\x86\Debug\flui
 f:\new\cfdprogramming\src2015\finitevolumecell\heat2PolyTeach\obj\x86\Debug\fluidedotnet.csproj.GenerateResource.Cache
 f:\new\cfdprogramming\src2015\finitevolumecell\heat2PolyTeach\bin\Debug\fluidedotnet.exe
 f:\new\cfdprogramming\src2015\finitevolumecell\heat2PolyTeach\bin\Debug\fluidedotnet.pdb
+f:\new\cfdprogramming\src2015\habrapacket\test\FiniteVolume\FiniteVolume\FiniteVolume\other\heat2PolyTeach\obj\x86\Debug\fluidedotnet.exe
+f:\new\cfdprogramming\src2015\habrapacket\test\FiniteVolume\FiniteVolume\FiniteVolume\other\heat2PolyTeach\obj\x86\Debug\fluidedotnet.pdb

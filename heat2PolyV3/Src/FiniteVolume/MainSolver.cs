@@ -1,0 +1,510 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+//using REAL = System.Double;
+using EVector = EgenLib.EMath.Vector3;
+using Vector2 = EgenLib.EMath.Vector2;
+using FiniteVolume2D;
+
+namespace FiniteVolume2D
+{
+
+    public class MainSolver
+    {
+        int elementcount;
+        public Element[] elements;
+        public Face[] faces;
+        public Face[] bndfaces;
+        //        public Node[] nodes;
+        public int nodecount;
+        double delt;
+        int count;
+
+
+        public MainSolver()
+        {
+        }
+        public double GetStepSize()
+        {
+            return delt;
+        }
+
+        // -------------------- COMPUTE ---------------------------------
+        // -------------------- COMPUTE ---------------------------------
+
+
+        public void Calc()
+        {
+
+            double bc, ac;
+            double sumflux;
+            double[] aa = new double[6];
+            double[] bb = new double[6];
+
+            int e;
+
+            for (e = 0; e < elementcount; e++)
+                elements[e].CalcGradient();
+
+            for (e = 0; e < elementcount; e++)
+            {
+                Element elem = elements[e];
+
+                int nf;
+                bc = 0;
+                ac = 0;
+                sumflux = 0;
+                for (int nn = 0; nn <6; nn++)
+                {
+                    aa[nn] = 0;
+                    bb[nn] = 0;
+                }
+                for (nf = 0; nf < elem.vertex.Length; nf++)
+                {
+                    Face face = elem.faces[nf];
+                    Element nb = elem.nbs[nf];
+                    if (face.isboundary)
+                    {
+                        if (face.boundaryType == BoundaryType.BND_CONST)
+                        {
+
+                            double flux1nf;
+                            flux1nf = elem.k * (face.area / elem.nodedistances[nf]);
+                            Vector2 Sf = face.sf.Clone();
+                            Vector2 dCf = elem.cfdistance[nf].Clone();
+                            if (Sf * dCf < 0)
+                                Sf = -Sf;
+                            //1) minimum correction
+                            //Vector2 DCF = elem.cndistance[nf].Clone();
+                            Vector2 e1 = dCf.GetNormalize();
+                            Vector2 EF = (e1 * Sf) * e1;
+
+                            double flux;
+                            flux = elem.k * (EF.Length() / dCf.Length());
+
+                            Vector2 gradface = elem.gradient;// elem.geomInterpolateFactor[nf] * nb.gradient + (1 - elem.geomInterpolateFactor[nf]) * elem.gradient;
+                            Vector2 TF = Sf - EF;
+                            double fluxT = -elem.k * (gradface * TF);
+                            bc -= fluxT;
+//                            Vector2 gradface = (elem.u-face.u) * (EF.Length() / dCf.Length()) * Sf.GetNormalize();
+//                            Vector2 TF = Sf - EF;
+//                            double fluxT = -elem.k * (gradface * TF);
+//                            bc -= fluxT;
+
+                            ac += flux;
+                            bc += flux * face.bndu;
+                            bb[nf] = flux;
+                        }
+                        else if (face.boundaryType == BoundaryType.BND_INSULATED)
+                        {
+                            double flux=0;
+                            ac += flux;
+                            bc += flux * face.bndu;
+                            bb[nf] = flux;
+
+                        }
+                    }
+                    else
+                    {
+                        double flux1nf;
+                        flux1nf = -elem.k * (face.area / elem.nodedistances[nf]);
+                        Vector2 Sf = face.sf.Clone();
+                        Vector2 dCf = elem.cfdistance[nf].Clone();
+                        if (Sf * dCf < 0)
+                            Sf = -Sf;
+                        //1) minimum correction
+                        Vector2 DCF = elem.cndistance[nf].Clone();
+                        Vector2 e1 = DCF.GetNormalize();
+                        Vector2 EF = (e1 * Sf) * e1;
+
+                        double flux;
+                        flux = -elem.k * (EF.Length() / dCf.Length());
+
+                        //if (!elem.isboundary)
+                        {
+
+                            Vector2 gradface = elem.geomInterpolateFactor[nf] * nb.gradient + (1 - elem.geomInterpolateFactor[nf]) * elem.gradient;
+                            Vector2 TF = Sf - EF;
+                            double fluxT = -elem.k * (gradface * TF);
+
+                            bc -= fluxT;
+                        }
+
+                        sumflux += flux * nb.u;
+                        ac += -flux;
+                        aa[nf] = -flux;
+                    }
+
+                }
+                elem.u = elem.u + (delt/elem.volume) * (bc - sumflux - ac * elem.u);
+
+
+            }
+
+        }
+
+
+        // -------------------- MAIN ---------------------------------
+        // -------------------- MAIN ---------------------------------
+
+
+        public void Destroy()
+        {
+
+        }
+        public void SetInitialBoundary()
+        {
+            int e;
+            Element elem;
+            for (e = 0; e < elementcount; e++)
+            {
+                elem = elements[e];
+                elem.u = 0;
+            }
+            SetPeriodicBoundary();
+        }
+        //p.out
+        public void SetPeriodicBoundaryP()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face=bndfaces[f];
+                if (face.bnddomain == 0)
+                {
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                face.owner.isboundary = true;
+            }
+
+        }
+                //std.out stdref.out
+                public void SetPeriodicBoundaryS1()
+                {
+                    int f;
+                    Face face;
+                    for (f = 0; f < bndfaces.Length; f++)
+                    {
+                        face = bndfaces[f];
+                        if (face.bndgroup == 3)
+                        {
+                            face.SetBoundary(BoundaryType.BND_CONST, 255);
+                        }
+                        else
+                            face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+                    }
+                }
+        //std.out stdref.out
+        public void SetPeriodicBoundaryS()
+        {
+            int f;
+            Face face;
+
+            int e = 0;
+            for (e = 0; e < elementcount; e++)
+            {
+                Element elem;
+                elem = elements[e];
+                if (elem.id == 2204-1)
+                {
+//                    elem.u = 9250;
+                    elem.u = 250;
+                }
+
+//                isboundary
+            }
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+            }
+        }
+
+        //circle.out eye
+        public void SetPeriodicBoundaryC1()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                if (face.bnddomain == 0)
+                {
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+            }
+
+        }
+        //circle.out
+        public void SetPeriodicBoundaryC2()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                if (face.bnddomain == 0 && (face.bndgroup==6 || face.bndgroup==8))
+//                    if (face.bnddomain == 0)
+                {
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+            }
+
+        }
+        //circlehole.out 
+        public void SetPeriodicBoundaryH1()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                //if (face.bndgroup<5)
+                if (face.bndgroup > 4)
+                    {
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+            }
+
+        }
+        //recthole.out 
+        public void SetPeriodicBoundaryH2()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                if (face.bndgroup == 3 || face.bndgroup == 4 || face.bndgroup == 5 || face.bndgroup == 8)
+                {
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                face.owner.isboundary = true;
+            }
+
+        }
+
+        //triangle.out
+        public void SetPeriodicBoundary()
+        {
+            int f;
+            Face face;
+            for (f = 0; f < bndfaces.Length; f++)
+            {
+                face = bndfaces[f];
+                if (face.bndgroup == 5 || face.bndgroup == 1 || face.bndgroup == 7)
+                {
+                    face.SetBoundary(BoundaryType.BND_CONST, 255);
+                }
+                else
+                    face.SetBoundary(BoundaryType.BND_CONST, 0);
+                face.owner.isboundary = true;
+            }
+
+        }
+        public void SetParameters()
+        {
+            delt = 0.0008;
+        }
+        public bool Create(string filename_)
+        {
+            double[,] points=null ;
+            double[,] polys = null;
+            double[,] bound = null;
+
+
+            Dictionary<string, Face> facedic = new Dictionary<string, Face>();
+
+
+            if (!LoadFromFile(filename_, ref points, ref polys, ref bound))
+                return false;
+            count = 0;
+            SetParameters();
+            elementcount = polys.GetLength(1);
+            int vertexcount = polys.GetLength(0)-1;
+            elements = new Element[elementcount];
+
+            int faceid = 0;
+            int e = 0;
+            for (e = 0; e < elementcount; e++)
+            {
+                Element elem;
+                elements[e] = new Element(vertexcount);
+                elem = elements[e]; elem.id = e; elem.k = 1;
+                Vector2[] vertex = new Vector2[vertexcount];
+                for (int v = 0; v < vertexcount; v++)
+                {
+                    int pointindex = (int)polys[v, e];
+                    vertex[v] = new Vector2(points[0, pointindex], points[1, pointindex]);
+                    int p1index = pointindex;
+                    int p2index = 0;
+                    if (v < vertexcount - 1)
+                        p2index = (int)polys[v + 1, e];
+                    else
+                        p2index = (int)polys[0, e];
+                    int p1 = p1index;
+                    int p2 = p2index;
+                    string facestr =Face.GetFaceStrId(p1index,p2index);
+                    if (!facedic.ContainsKey(facestr))
+                    {
+                        Face face = new Face(new Vector2(points[0, p1], points[1, p1]), new Vector2(points[0, p2], points[1, p2]));
+                        face.id = faceid;
+                        face.pointid1=p1;
+                        face.pointid2=p2;
+                        face.owner = elem;
+                        faceid++;
+                        facedic.Add(facestr, face);
+                        elem.faces[v] = face;
+                    }
+                    else
+                    {
+                        Face face = facedic[facestr];
+                        face.nbelem = elem;
+                        elem.faces[v] = face;
+                        Element owner = face.owner;
+                        elem.nbs[v] = owner;
+                        owner.nbs[owner.FaceLocalId(face)] = elem;
+                    }
+
+                }
+                elem.SetPolygon(vertex);
+                elem.PreCalc();
+            }
+
+            faces = new Face[facedic.Count];
+            bndfaces = new Face[bound.GetLength(1)];
+
+            foreach (var pair in facedic)
+            {
+                Face face = pair.Value;
+                faces[face.id] = face;
+            }
+
+            for (e = 0; e < elementcount; e++)
+                elements[e].Calc();
+
+            int f;
+            for (f = 0; f < bound.GetLength(1); f++)
+            {
+                string facestr = Face.GetFaceStrId((int)bound[0, f], (int)bound[1, f]);
+                Face face = facedic[facestr];
+                face.bnddomain = (int)bound[5, f];
+                face.bndgroup = (int)bound[4, f];
+                face.isboundary = true;
+                bndfaces[f]=face;
+            }
+
+            SetInitialBoundary();
+
+//            for (e = 0; e < elementcount; e++)
+//                elements[e].CalcFluxes();
+
+
+            return true;
+
+        }
+        public double[,] LoadMatrix(string[] lines,ref int row)
+        {
+            double[,] m ;
+            int rowstart = row;
+
+            for (; ; )
+            {
+                string line = lines[row];
+                if (line.StartsWith("##"))
+                    break;
+                if (line.Trim() == "")
+                    break;
+                row++;
+            }
+            int rowend = row-1;
+            int cols = lines[rowstart].Split(' ').Length;
+            m = new double[rowend-rowstart +1 , cols];
+            int col = 0;
+            for(int r=rowstart;r<=rowend;r++)
+            {
+                string line = lines[r];
+                var vals = line.Split(' ');
+                col = 0;
+                foreach (string s in vals)
+                {
+                    m[r - rowstart, col] = Convert.ToDouble(s.Trim().Replace(".", ","));
+                    col++;
+                }
+            }
+
+
+            return m;
+        }
+        public bool LoadFromFile(string Inputfile, ref double[,] points, ref double[,] polys, ref double[,] bound)
+        {
+            var lines = File.ReadAllText(Inputfile+".out").Split('\n');
+            if (lines[0].Replace(" ", "") != "##Point")
+                return false;
+
+            int row = 1;
+            points = LoadMatrix(lines,ref row);
+
+            // zoom by x
+                for (int p = 0; p < points.GetLength(1); p++)
+                {
+                    points[0,p]*=1;
+                    //points[1, p] -= 1;
+                }
+
+            row++;
+            polys = LoadMatrix(lines, ref row);
+            row++;
+            bound = LoadMatrix(lines, ref row);
+            for (int r = 0; r < polys.GetLength(0); r++)
+                for (int c = 0; c < polys.GetLength(1); c++)
+                {
+                    polys[r, c] -= 1;
+                }
+
+            for (int r = 0; r < 2; r++)
+                for (int c = 0; c < bound.GetLength(1); c++)
+                {
+                    bound[r, c] -= 1;
+                }
+
+            return true;
+        }
+        public void RunPhysic()
+        {
+            //return;
+  //          if (count>0)
+  //              return;
+            count++;
+
+            SetPeriodicBoundary();
+            Calc();
+
+
+        }
+
+
+
+    }
+
+
+
+
+}
+
